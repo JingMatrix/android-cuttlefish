@@ -31,6 +31,7 @@
 #include "cuttlefish/common/libs/utils/environment.h"
 #include "cuttlefish/common/libs/utils/files.h"
 #include "cuttlefish/host/commands/cvd/fetch/host_pkg_migration.pb.h"
+#include "cuttlefish/posix/rename.h"
 #include "cuttlefish/posix/strerror.h"
 #include "cuttlefish/posix/symlink.h"
 #include "cuttlefish/result/result.h"
@@ -62,10 +63,21 @@ Result<void> Substitute(const std::string& target,
 
   CF_EXPECT(EnsureDirectoryExists(android::base::Dirname(full_link_name)));
 
-  int unlink_res = unlink(full_link_name.c_str());
-  CF_EXPECTF(unlink_res == 0 || errno == ENOENT, "{}", StrError(errno));
-
-  CF_EXPECT(Symlink(target, full_link_name));
+  // Create the new symlink under a unique temporary name in the same directory,
+  // then atomically rename(2) it over the destination. Unlike unlink()+symlink(),
+  // rename() never leaves the link missing or half-created, so concurrent
+  // substitutions of the same link -- e.g. parallel `cvd start` sharing one host
+  // package -- can't race each other into "already exists"/"no such file".
+  std::string tmp_link_name =
+      fmt::format("{}.tmp.{}", full_link_name, getpid());
+  // Clear a temp leaked by a previously-crashed process that reused our pid.
+  unlink(tmp_link_name.c_str());
+  CF_EXPECT(Symlink(target, tmp_link_name));
+  if (Result<void> renamed = Rename(tmp_link_name, full_link_name);
+      !renamed.ok()) {
+    unlink(tmp_link_name.c_str());  // don't leak the temp symlink on failure
+    CF_EXPECT(std::move(renamed));
+  }
   return {};
 }
 

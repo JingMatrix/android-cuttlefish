@@ -69,7 +69,11 @@ class DataViewer {
   Result<R> WithExclusiveLock(
       std::function<Result<R>(cvd::PersistentData&)> task) {
     DeadlockProtector dp(*this);
-    auto fd = CF_EXPECT(LockBackingFile(LOCK_SH));
+    // Must be an exclusive lock: this path does read -> Truncate(0) -> write of
+    // the backing file. A shared (LOCK_SH) lock lets concurrent holders read the
+    // database mid-truncate (seeing zero groups) and clobber each other's write,
+    // which breaks parallel `cvd create`/`cvd start`.
+    auto fd = CF_EXPECT(LockBackingFile(LOCK_EX));
     auto data = CF_EXPECT(LoadData(fd));
     auto res = task(data);
     if (!res.ok()) {

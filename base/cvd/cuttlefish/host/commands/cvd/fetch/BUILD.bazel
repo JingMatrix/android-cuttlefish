@@ -329,6 +329,7 @@ cf_cc_library(
         ":host_pkg_migration_cc_proto",
         "//cuttlefish/common/libs/utils:environment",
         "//cuttlefish/common/libs/utils:files",
+        "//cuttlefish/posix:rename",
         "//cuttlefish/posix:strerror",
         "//cuttlefish/posix:symlink",
         "//cuttlefish/result",
