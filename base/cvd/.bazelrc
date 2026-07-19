@@ -6,6 +6,11 @@ build --output_filter='^//((?!(external/libarchive|external/libevent|external/ru
 build --test_output=errors
 build --test_summary=terse
 
+# BoringSSL's OPENSSL_memchr in internal.h trips
+# -Wincompatible-pointer-types-discards-qualifiers under -Werror with glibc >= 2.38,
+# whose memchr() macro preserves const. Suppress it for the external boringssl sources.
+build --per_file_copt=external/boringssl.*@-Wno-incompatible-pointer-types-discards-qualifiers
+
 # files with warnings from files they depend upon
 build --per_file_copt=cuttlefish/host/graphics_detector/vulkan\.cpp$@-Wno-deprecated-declarations
 build --per_file_copt=cuttlefish/host/frontend/webrtc/libcommon/connection_controller\.cpp$@-Wno-thread-safety-reference-return
