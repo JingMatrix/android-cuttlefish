@@ -195,8 +195,17 @@ Result<void> HostPackageSubstitution(
     return SubstituteWithMarker(target_dir, marker_file);
   }
 
-  if (FileExists(target_dir + "/etc/debian_substitution_marker")) {
-    return SubstituteWithFlag(target_dir, {"all"});
+  // Substitute only the binaries the host package's marker explicitly lists,
+  // not every file under cuttlefish-common. Replacing host tools wholesale
+  // (the previous `{"all"}` behavior) swaps in the in-repo builds of
+  // assemble_cvd/run_cvd/etc., which silently drop any host-package-only launch
+  // flags they don't define (e.g. --keybox_path, --host_shared_dir). The
+  // marker's symlink list is the control point: edit it in the host package to
+  // choose exactly which files get replaced. Per-invocation overrides remain
+  // available via --host_substitutions and LOCAL_DEBIAN_SUBSTITUTION_MARKER_FILE.
+  std::string marker_file = target_dir + "/etc/debian_substitution_marker";
+  if (FileExists(marker_file)) {
+    return SubstituteWithMarker(target_dir, marker_file);
   }
 
   return {};
